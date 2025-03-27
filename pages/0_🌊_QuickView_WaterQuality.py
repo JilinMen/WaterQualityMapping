@@ -10,6 +10,10 @@ import sys, os
 sys.path.append(os.path.dirname(__file__))
 import waterquality_functions as wqf
 from typing import Any, Optional, Dict
+import fiona
+import geopandas as gpd
+import numpy as np
+import datetime
 
 st.set_page_config(layout="wide")
 warnings.filterwarnings("ignore")
@@ -17,7 +21,25 @@ warnings.filterwarnings("ignore")
 # @st.cache_data
 # def ee_authenticate(token_name="EARTHENGINE_TOKEN"):
 #     geemap.ee_initialize(token_name=token_name)
+def uploaded_file_to_gdf(data):
+    import tempfile
+    import os
+    import uuid
 
+    _, file_extension = os.path.splitext(data.name)
+    file_id = str(uuid.uuid4())
+    file_path = os.path.join(tempfile.gettempdir(), f"{file_id}{file_extension}")
+
+    with open(file_path, "wb") as file:
+        file.write(data.getbuffer())
+
+    if file_path.lower().endswith(".kml"):
+        fiona.drvsupport.supported_drivers["KML"] = "rw"
+        gdf = gpd.read_file(file_path, driver="KML")
+    else:
+        gdf = gpd.read_file(file_path)
+
+    return gdf
 
 st.sidebar.info(
     """
@@ -40,87 +62,107 @@ st.markdown(
 Quickly mapping chlorophyll-a, CDOM, turbidity for inland waters
 """
 )
+
+# ee_authenticate(token_name="EARTHENGINE_TOKEN")
+# 读取 GEE 账号和密钥
+service_account = st.secrets["GEE_SERVICE_ACCOUNT"]
+private_key = st.secrets["GEE_PRIVATE_KEY"]
+
+# 解析密钥
+credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
+ee.Initialize(credentials)
+
 col1, col2 = st.columns([3,1])
 
-height = 600
+# 初始化 session_state 变量
+default_values = {
+    "min_lon": 0,
+    "max_lon": 0,
+    "min_lat": 0,
+    "max_lat": 0,
+    "sensor": ["L8_OLI"],
+    "atmospheric_correction": "SR",
+    "bios": ["Chl-a"]
+}
+
+# 检查并设置缺失的 session_state 变量
+for key, default_value in default_values.items():
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
 with col1:
-    # ee_authenticate(token_name="EARTHENGINE_TOKEN")
-    # 读取 GEE 账号和密钥
-    service_account = st.secrets["GEE_SERVICE_ACCOUNT"]
-    private_key = st.secrets["GEE_PRIVATE_KEY"]
-    
-    # 解析密钥
-    credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
-    ee.Initialize(credentials)
+    data = st.file_uploader(
+        "Upload a GeoJSON file to use as an ROI. Customize timelapse parameters and then click the Submit button 😇👇",
+        type=["geojson", "kml", "zip"],
+        )
+if data:
+    gdf = uploaded_file_to_gdf(data)
+    st.session_state["roi"] = geemap.gdf_to_ee(gdf, geodesic=False)
+    st.session_state['m'].add_gdf(gdf, "ROI")
+    bounds = np.array(gdf.bounds)
 
-    m = Map(center=(35, -95), zoom=4)
-    st_component = m.to_streamlit(height=600)
-    st.write("Draw Features:", st_component)
-    import json
-    # 获取Streamlit组件
-    draw_features = m.st_draw_features(st)  # 获取对应的 streamlit-folium 组件
-    st.write("Draw features:", draw_features)
-    # 调用 st_last_draw() 获取最后一次绘制的结果
-    last_draw = m.st_last_draw(st_component)  # 调用方法，传入 st_component
-    st.write("Draw last:", last_draw)
-        
-    # 定义计算最大最小经纬度的函数
-    if m.st_last_draw:
-        min_lat, min_lon, max_lat, max_lon = wqf.get_bounding_box(m.st_last_draw)
+    # 更新 session_state 中的值（这里要用 `st.session_state.update` 避免冲突）
+    st.session_state.update({
+        "min_lon": bounds[0][0],
+        "min_lat": bounds[0][1],
+        "max_lon": bounds[0][2],
+        "max_lat": bounds[0][3]
+    })
 
 with col2:
     st.write('Date range:')
-    start_date = st.date_input("start_date")
-    end_date = st.date_input("end_date")
+    start_date = st.date_input("start_date",value=datetime.date.today() - datetime.timedelta(days=30))
+    end_date = st.date_input("end_date", value=datetime.date.today())
     st.write('Coordinates:')
-    min_lon = st.number_input("min lon")
-    max_lon = st.number_input("max lon")
-    min_lat = st.number_input("min lat")
-    max_lat = st.number_input("max lat")
 
-    sensor = st.multiselect('Sensor:',["L8_OLI","L9_OLI",'S2A_MSI','S2B_MSI'],default=['L8_OLI'])
-    atmospheric_correction = st.selectbox("Atmospheric correction:",["SR","ACOLITE"],index=0)
-    bios = st.multiselect("Bio-optical:",["Chl-a","TSS","CDOM"],default=['Chl-a'])
+    # 创建输入框，并绑定到 session_state，同时使用 on_change 回调
+    st.number_input("min lon", value=st.session_state["min_lon"], key="min_lon")
+    st.number_input("max lon", value=st.session_state["max_lon"], key="max_lon")
+    st.number_input("min lat", value=st.session_state["min_lat"], key="min_lat")
+    st.number_input("max lat", value=st.session_state["max_lat"], key="max_lat")
+
+    st.multiselect('Sensor:',["L8_OLI","L9_OLI",'S2A_MSI','S2B_MSI'],default=st.session_state['sensor'],key="sensor")
+    st.selectbox("Atmospheric correction:",["SR","ACOLITE"],index=0,key="atmospheric_correction")
+    st.multiselect("Bio-optical:",["Chl-a","TSS","CDOM"],default=st.session_state['bios'],key='bios')
 
     button_run = st.button("Run")
     button_clear = st.button("Clear")
 
+if button_clear:
+
+    print("Clear successfully!")
+
+st.session_state['m'] = Map(center=(35, -95), zoom=4, Draw_export=True)
 if button_run:
-    global collection
-    # global water_extracted_collection
-    global collection_day
-
-    print('Retrieving images!')
-
+    st.write('Retrieving images!')
     images, imColl = wqf.match_scenes(
-        start_date.value.isoformat(), end_date.value.isoformat(), day_range=1,
+        start_date.isoformat(), end_date.isoformat(), day_range=1,
         surface_reflectance=True,
-        limit=[min_lat.value, min_lon.value, max_lat.value, max_lon.value],
+        limit=[st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
         st_lat=None, st_lon=None, filter_tiles=None,
-        sensors=", ".join(sensor.value)
+        sensors=", ".join(st.session_state['sensor'])
     )
 
-    print("Total images:", len(images))
-    print("Image list: ",imColl.aggregate_array('system:index').getInfo())
-    print("Cloud cover: ",imColl.aggregate_array('CLOUD_COVER').getInfo())
+    st.write("Total images:", len(images))
+    st.write("Image list: ",imColl.aggregate_array('system:index').getInfo())
+    st.write("Cloud cover: ",imColl.aggregate_array('CLOUD_COVER').getInfo())
 
     if len(images)==0:
     
-        print('No image founded!')
+        st.write('No image founded!')
 
-    elif atmospheric_correction.value == 'SR':
+    elif st.session_state['atmospheric_correction'] == 'SR':
         collection = imColl
 
         # transfer to surface reflectance
-        if sensor.value[0] in ['S2A_MSI', 'S2B_MSI']:
+        if st.session_state['sensor'][0] in ['S2A_MSI', 'S2B_MSI']:
             print('Input S2')
             collection_scaled = collection.map(wqf.scale_reflectance_sentinel)
-        elif sensor.value[0] in ['L4_TM', 'L5_TM', 'L7_ETM', 'L8_OLI', 'L9_OLI']:
+        elif st.session_state['sensor'][0] in ['L4_TM', 'L5_TM', 'L7_ETM', 'L8_OLI', 'L9_OLI']:
             print('Input Landsat')
             collection_scaled = collection.map(wqf.scale_reflectance_landsat)
         else:
-            print("Unsupported sensor for reflectance conversion.",sensor.value)
+            print("Unsupported sensor for reflectance conversion.",st.session_state['sensor'])
             collection_scaled = collection
 
         # mosaic images on the same day
@@ -140,37 +182,38 @@ if button_run:
         print('start to map RGB image!')
         wqf.preview_rgb_image(collection_day)
         print('start to map water quality parameters!')
-        wqf.show_wq(water_extracted_collection)
+        bios_results = wqf.show_wq(water_extracted_collection)
+
         print("Processing complete!")
-    elif atmospheric_correction.value == 'ACOLITE':
+    elif st.session_state['atmospheric_correction'] == 'ACOLITE':
         # with status_output:
         st.write("Applying ACOLITE Atmospheric Correction...")
         # collection = wqf.ACOLITE_run(
-        #             [min_lat.value, min_lon.value, max_lat.value, max_lon.value],
-        #             start_date.value.isoformat(), end_date.value.isoformat(),
-        #             ", ".join(sensor.value)
+        #             [st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
+        #             start_date.isoformat(), end_date.isoformat(),
+        #             ", ".join(st.session_state['sensor'])
         #             )
         # # Ensure collection and imColl have the same start_time by merging metadata
         # def merge_scl_or_qa_pixel(image, reference_image):
-        #     if sensor.value == 'S2A_MSI' or sensor.value == 'S2B_MSI':
+        #     if st.session_state['sensor'] == 'S2A_MSI' or st.session_state['sensor'] == 'S2B_MSI':
         #         flag_band = 'SCL'
         #     else:
         #         flag_band = 'QA_PIXEL'
         #     # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
         #     scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
         #     return image.addBands(scl_or_qa_pixel)
-
+        #
         # # Apply the merging function to ensure that both collections have the same SCL/QA_PIXEL
         # collection = collection.map(lambda image: merge_scl_or_qa_pixel(image,imColl.filterDate(image.get('time_start')).first()))
-        
+        #
         # print("Atmospheric correction complete!")
-        
+        #
         # collection_day = wqf.merge_by_day(collection)
-
+        #
         # # mask clouds and land
         # water_extracted_collection = collection_day.map(wqf.mask_water)
         # print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
-
+        #
         # # RGB preview
         # print('start to map RGB image!')
         # wqf.preview_rgb_image(collection_day)
@@ -180,8 +223,9 @@ if button_run:
     else:
         print("Unsupported atmospheric correction method.")
 
+with col1:
+    st.session_state['m'].to_streamlit(height=800)
 
-if button_clear:
-    print("Clear successfully!")
+
 
 
