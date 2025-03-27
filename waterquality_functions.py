@@ -308,31 +308,33 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10)
         print(f"Processing image {i + 1}/{count}: {image_date}")
 
         # Add the image to the map
-        try:
-            print("Add water quality map to layer!")
-            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
-        except Exception as e:
-            print(f"Error adding image to the map: {e}")
+        print("Add water quality map to layer!")
+        if label == 'Chl-a':
+            st.session_state["m"].addLayer(image, st.session_state['vis_chl'], f"{label}_{image_date}")
+        elif label == 'TSS':
+            st.session_state["m"].addLayer(image, st.session_state['vis_tss'], f"{label}_{image_date}")
+        if label == 'CDOM':
+            st.session_state["m"].addLayer(image, st.session_state['vis_cdom'], f"{label}_{image_date}")
 
-    # Ensure colorbar is added only once per label
-    if not hasattr(st.session_state["m"], "added_labels") or not isinstance(st.session_state['m'].added_labels, set):
-        st.session_state["m"].added_labels = set()
+    # # Ensure colorbar is added only once per label
+    # if not hasattr(st.session_state["m"], "added_labels") or not isinstance(st.session_state['m'].added_labels, set):
+    #     st.session_state["m"].added_labels = set()
 
-    if label not in st.session_state["m"].added_labels:
-        # Ensure 'colorbars' is a list to avoid AttributeError
-        if hasattr(st.session_state["m"], 'colorbars'):
-            if isinstance(st.session_state["m"].colorbars, set):
-                st.session_state["m"].colorbars = list(m.colorbars)
-        else:
-            st.session_state["m"].colorbars = []
-
-        st.session_state["m"].add_colorbar(
-            vis_params,
-            label=label,
-            orientation='horizontal',
-            transparent_bg=True
-        )
-        st.session_state["m"].added_labels.add(label)
+    # if label not in st.session_state["m"].added_labels:
+    #     # Ensure 'colorbars' is a list to avoid AttributeError
+    #     if hasattr(st.session_state["m"], 'colorbars'):
+    #         if isinstance(st.session_state["m"].colorbars, set):
+    #             st.session_state["m"].colorbars = list(m.colorbars)
+    #     else:
+    #         st.session_state["m"].colorbars = []
+    #
+    #     st.session_state["m"].add_colorbar(
+    #         vis_params,
+    #         label=label,
+    #         orientation='horizontal',
+    #         transparent_bg=True
+    #     )
+    #     st.session_state["m"].added_labels.add(label)
 
     return algo_collection
 
