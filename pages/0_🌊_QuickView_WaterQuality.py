@@ -57,11 +57,11 @@ st.sidebar.info(
 
 
 st.title('Quick View of Water Quality')
-st.markdown(
-"""
-Quickly mapping chlorophyll-a, CDOM, turbidity for inland waters
-"""
-)
+# st.markdown(
+# """
+# Quickly mapping chlorophyll-a, CDOM, turbidity for inland waters
+# """
+# )
 
 # ee_authenticate(token_name="EARTHENGINE_TOKEN")
 # 读取 GEE 账号和密钥
