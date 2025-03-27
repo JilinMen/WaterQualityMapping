@@ -2,13 +2,14 @@ import os
 import sys
 import datetime
 from pathlib import Path
+import ee
+import streamlit as st
 
 ## written by Quinten Vanhellemont, RBINS
 def match_scenes(isodate_start, isodate_end=None, day_range=1,
                 surface_reflectance=False,
                 limit=None, st_lat=None, st_lon=None, filter_tiles=None,
                 sensors=['L4_TM', 'L5_TM', 'L7_ETM', 'L8_OLI', 'L9_OLI', 'S2A_MSI', 'S2B_MSI']):
-    import ee
     #ee.Authenticate() ## assume ee use is authenticated in current environment
     #ee.Initialize()
 
@@ -165,7 +166,7 @@ def update_settings(limit, isodate_start, isodate_end, sensor, output, output_sc
     params["output_format="] = output_format
     params["st_crop="] = False
     # write these parameters to the acolite/gee_settings.txt
-    gee_settings = os.path.join('/content/acolite',"config/gee_settings.txt")
+    gee_settings = os.path.join(os.path.dirname(__file__),"acolite/config/gee_settings.txt")
 
     try:
         with open(gee_settings,'r') as file:
@@ -232,10 +233,10 @@ def preview_rgb_image(collection,num_images = 10):
     # image_date = ee.Date(first_image.get('system:time_start')).format('YYYY-MM-dd')
 
     # select RGB bands
-    if atmospheric_correction.value == 'SR':
-        if 'L8_OLI' in sensor.value[0] or 'L9_OLI' in sensor.value[0]:
+    if st.session_state['atmospheric_correction'] == 'SR':
+        if 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
             rgb_bands = ['SR_B4', 'SR_B3', 'SR_B2']
-        elif 'S2A_MSI' in sensor.value[0] or 'S2B_MSI' in sensor.value[0]:
+        elif 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
             rgb_bands = ['B4', 'B3', 'B2']
     else:
         rgb_bands = ['B4', 'B3', 'B2']
@@ -257,7 +258,8 @@ def preview_rgb_image(collection,num_images = 10):
         image_date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd').getInfo()
         print(f"Processing image {i + 1}/{count}: {image_date}")
         # add to map
-        m.addLayer(image, vis_params, f"RGB_{image_date}")
+        st.session_state['m'].addLayer(image, vis_params, f"RGB_{image_date}")
+    # st.session_state['m'].to_streamlit(height=600)
 
 def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10):
     '''
@@ -265,11 +267,8 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10)
     algorithm: water quality function
     vis_params: visualization parameters (optional)
     '''
-    if label == "WaterClass":
-        test_lambda = np.array([412,443,490,510,555,667,680])
-    else:
-        # Apply the algorithm to the image collection
-        algo_collection = collect.map(algorithm)
+    # Apply the algorithm to the image collection
+    algo_collection = collect.map(algorithm)
 
     # Limit the collection to the first 'num_images' if necessary
     # print(algo_collection.size().getInfo())
@@ -311,29 +310,29 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10)
         # Add the image to the map
         try:
             print("Add water quality map to layer!")
-            m.addLayer(image, vis_params, f"{label}_{image_date}")
+            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
         except Exception as e:
             print(f"Error adding image to the map: {e}")
 
     # Ensure colorbar is added only once per label
-    if not hasattr(m, "added_labels") or not isinstance(m.added_labels, set):
-        m.added_labels = set()
+    if not hasattr(st.session_state["m"], "added_labels") or not isinstance(st.session_state['m'].added_labels, set):
+        st.session_state["m"].added_labels = set()
 
-    if label not in m.added_labels:
+    if label not in st.session_state["m"].added_labels:
         # Ensure 'colorbars' is a list to avoid AttributeError
-        if hasattr(m, 'colorbars'):
-            if isinstance(m.colorbars, set):
-                m.colorbars = list(m.colorbars)
+        if hasattr(st.session_state["m"], 'colorbars'):
+            if isinstance(st.session_state["m"].colorbars, set):
+                st.session_state["m"].colorbars = list(m.colorbars)
         else:
-            m.colorbars = []
+            st.session_state["m"].colorbars = []
 
-        m.add_colorbar(
+        st.session_state["m"].add_colorbar(
             vis_params,
             label=label,
             orientation='horizontal',
             transparent_bg=True
         )
-        m.added_labels.add(label)
+        st.session_state["m"].added_labels.add(label)
 
     return algo_collection
 
@@ -343,12 +342,12 @@ def Chl_algorithm(image):
     '''
     print("Calculating Chlorophyll-a concentration...")
     try:
-        if atmospheric_correction.value == 'SR':
-            if 'S2A_MSI' in sensor.value[0] or 'S2B_MSI' in sensor.value[0]:
+        if st.session_state['atmospheric_correction'] == 'SR':
+            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
                 blue1 = 'B1'
                 blue2 = 'B2'
                 green = 'B3'
-            elif 'L8_OLI' in sensor.value[0] or 'L9_OLI' in sensor.value[0]:
+            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
                 blue1 = 'SR_B1'
                 blue2 = 'SR_B2'
                 green = 'SR_B3'
@@ -392,11 +391,11 @@ def TSS_algorithm(image):
     print("Calculating total suspended solid...")
     try:
         # band select
-        if atmospheric_correction.value == 'SR':
-            if 'S2A_MSI' in sensor.value[0] or 'S2B_MSI' in sensor.value[0]:
+        if st.session_state['atmospheric_correction'] == 'SR':
+            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
                 green = 'B3'
                 red = 'B4'
-            elif 'L8_OLI' in sensor.value[0] or 'L9_OLI' in sensor.value[0]:
+            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
                 green = 'SR_B3'
                 red = 'SR_B4'
             else:
@@ -437,11 +436,11 @@ def TSS_algorithm(image):
 def CDOM_algorithm(image):
     print("Calculating colored dissolved organic matter (CDOM)...")
     try:
-        if atmospheric_correction.value == 'SR':
-            if 'S2A_MSI' in sensor.value[0] or 'S2B_MSI' in sensor.value[0]:
+        if st.session_state['atmospheric_correction'] == 'SR':
+            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
                 blue = 'B2'
                 green = 'B3'
-            elif 'L8_OLI' in sensor.value[0] or 'L9_OLI' in sensor.value[0]:
+            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
                 blue = 'SR_B2'
                 green = 'SR_B3'
             else:
@@ -722,18 +721,23 @@ def show_wq(collection):
     """
     show water quality
     """
-    if 'Chl-a' in bios.value:
+    results = []
+    if 'Chl-a' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 30,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "Chl-a"
-        show_map(collection,Chl_algorithm,label,vis_params)
-    if 'TSS' in bios.value:
+        chl = show_map(collection,Chl_algorithm,label,vis_params)
+        results.append(chl)
+    if 'TSS' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 10,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "TSS"
-        show_map(collection,TSS_algorithm,label,vis_params)
-    if 'CDOM' in bios.value:
+        TSS = show_map(collection,TSS_algorithm,label,vis_params)
+        results.append(TSS)
+    if 'CDOM' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "CDOM"
-        show_map(collection,CDOM_algorithm,label,vis_params)
+        CDOM = show_map(collection,CDOM_algorithm,label,vis_params)
+        results.append(CDOM)
+    return results
 
 def get_bounding_box(coordinates):
     # 获取最小和最大经纬度
