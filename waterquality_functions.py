@@ -263,6 +263,7 @@ def preview_rgb_image(collection,num_images = 10):
 
 def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10):
     '''
+    show water quality map
     collect: ee.ImageCollection
     algorithm: water quality function
     vis_params: visualization parameters (optional)
