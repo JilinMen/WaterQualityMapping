@@ -224,10 +224,12 @@ if button_run:
                     )
         # Ensure collection and imColl have the same start_time by merging metadata
         def merge_scl_or_qa_pixel(image, reference_image):
-            if st.session_state['sensor'] == 'S2A_MSI' or st.session_state['sensor'] == 'S2B_MSI':
+            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
                 flag_band = 'SCL'
-            else:
+            elif "L8_OLI" in st.session_state['sensor'] or "L9_OLI" in st.session_state['sensor']:
                 flag_band = 'QA_PIXEL'
+            else:
+                print("Sensor can't be identified: ",st.session_state['sensor'])
             # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
             scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
             return image.addBands(scl_or_qa_pixel)
