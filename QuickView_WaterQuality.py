@@ -41,20 +41,16 @@ def uploaded_file_to_gdf(data):
 
     return gdf
 
+
+st.sidebar.title("More information:")
+
 st.sidebar.info(
     """
-    - put something
-    - GitHub repository: <https://github.com/giswqs/streamlit-geospatial>
+    - email: jmen@ua.edu
+    - GitHub repository: <https://github.com/JilinMen/WaterQualityMapping>
+    - THE UNIVERSITY OF ALABAMA
     """
 )
-
-st.sidebar.title("Contact")
-st.sidebar.info(
-    """
-    Jilin Men at jmen@ua.edu
-    """
-)
-
 
 st.title('Quick View of Water Quality')
 st.markdown(
