@@ -58,7 +58,7 @@ def find_scenes(isodate_start, isodate_end=None, day_range=1,
     if 'L7_ETM' in sensors: landsats.append('LE07')
     if 'L8_OLI' in sensors: landsats.append('LC08')
     if 'L9_OLI' in sensors: landsats.append('LC09')
-    landsat_tiers = ['T1', 'T2']
+    landsat_tiers = ['T1']
     landsat_collections = ['C02']
 
     for landsat in landsats:
