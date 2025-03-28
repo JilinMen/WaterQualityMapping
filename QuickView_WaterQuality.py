@@ -221,38 +221,38 @@ if button_run:
     elif st.session_state['atmospheric_correction'] == 'ACOLITE':
         # with status_output:
         st.write("Applying ACOLITE Atmospheric Correction...")
-        # collection = wqf.ACOLITE_run(
-        #             [st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
-        #             start_date.isoformat(), end_date.isoformat(),
-        #             ", ".join(st.session_state['sensor'])
-        #             )
-        # # Ensure collection and imColl have the same start_time by merging metadata
-        # def merge_scl_or_qa_pixel(image, reference_image):
-        #     if st.session_state['sensor'] == 'S2A_MSI' or st.session_state['sensor'] == 'S2B_MSI':
-        #         flag_band = 'SCL'
-        #     else:
-        #         flag_band = 'QA_PIXEL'
-        #     # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
-        #     scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
-        #     return image.addBands(scl_or_qa_pixel)
-        #
-        # # Apply the merging function to ensure that both collections have the same SCL/QA_PIXEL
-        # collection = collection.map(lambda image: merge_scl_or_qa_pixel(image,imColl.filterDate(image.get('time_start')).first()))
-        #
-        # print("Atmospheric correction complete!")
-        #
-        # collection_day = wqf.merge_by_day(collection)
-        #
-        # # mask clouds and land
-        # water_extracted_collection = collection_day.map(wqf.mask_water)
-        # print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
-        #
-        # # RGB preview
-        # print('start to map RGB image!')
-        # wqf.preview_rgb_image(collection_day)
-        # print('start to map water quality parameters!')
-        # wqf.show_wq(water_extracted_collection)
-        # print("Processing complete!")
+        collection = wqf.ACOLITE_run(
+                    [st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
+                    start_date.isoformat(), end_date.isoformat(),
+                    ", ".join(st.session_state['sensor'])
+                    )
+        # Ensure collection and imColl have the same start_time by merging metadata
+        def merge_scl_or_qa_pixel(image, reference_image):
+            if st.session_state['sensor'] == 'S2A_MSI' or st.session_state['sensor'] == 'S2B_MSI':
+                flag_band = 'SCL'
+            else:
+                flag_band = 'QA_PIXEL'
+            # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
+            scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
+            return image.addBands(scl_or_qa_pixel)
+        
+        # Apply the merging function to ensure that both collections have the same SCL/QA_PIXEL
+        collection = collection.map(lambda image: merge_scl_or_qa_pixel(image,imColl.filterDate(image.get('time_start')).first()))
+        
+        print("Atmospheric correction complete!")
+        
+        collection_day = wqf.merge_by_day(collection)
+        
+        # mask clouds and land
+        water_extracted_collection = collection_day.map(wqf.mask_water)
+        print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
+        
+        # RGB preview
+        print('start to map RGB image!')
+        wqf.preview_rgb_image(collection_day)
+        print('start to map water quality parameters!')
+        wqf.show_wq(water_extracted_collection)
+        print("Processing complete!")
     else:
         print("Unsupported atmospheric correction method.")
 
