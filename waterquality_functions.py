@@ -84,7 +84,6 @@ def match_scenes(isodate_start, isodate_end=None, day_range=1,
             #collections.append('COPERNICUS/S2') # 'COPERNICUS/S2_HARMONIZED'
             collections.append('COPERNICUS/S2_HARMONIZED') # COPERNICUS/S2 superseded by COPERNICUS/S2_HARMONIZED in Jun 2024
 
-    print('Checking collections {}'.format(' '.join(collections)))
     print(limit)
     ## set up region
     if limit is not None:
@@ -105,7 +104,6 @@ def match_scenes(isodate_start, isodate_end=None, day_range=1,
             cloud_name = 'CLOUD_COVER'
         elif 'COPERNICUS' in coll:
             cloud_name = 'CLOUDY_PIXEL_PERCENTAGE'
-
         imC = ee.ImageCollection(coll).filterDate(sdate, edate).filter(ee.Filter.lt(cloud_name, 50))
         if region is not None: imC = imC.filterBounds(region)
 
@@ -189,7 +187,7 @@ def update_settings(limit, isodate_start, isodate_end, sensor, output, output_sc
         return
 
 def ACOLITE_run(limit, isodate_start, isodate_end, sensor,
-                output="./output", output_scale=None,target_scale=None,glint_correction=True,
+                output="/conetent/drive/MyDrive/ACOLITE/", output_scale=None,target_scale=None,glint_correction=True,
                 store_rhot=False,store_rhos=True,store_geom=False,store_sr=False,store_st=False,store_sp=False,
                 store_output_google_drive=False,
                 store_output_locally=False,
@@ -234,13 +232,12 @@ def preview_rgb_image(collection,num_images = 10):
 
     # select RGB bands
     if st.session_state['atmospheric_correction'] == 'SR':
-        if 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
+        if 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
             rgb_bands = ['SR_B4', 'SR_B3', 'SR_B2']
-        elif 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
+        elif 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
             rgb_bands = ['B4', 'B3', 'B2']
     else:
         rgb_bands = ['B4', 'B3', 'B2']
-
     # vislization parameters
     vis_params = {
         'bands': rgb_bands,
@@ -263,7 +260,6 @@ def preview_rgb_image(collection,num_images = 10):
 
 def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10):
     '''
-    show water quality map
     collect: ee.ImageCollection
     algorithm: water quality function
     vis_params: visualization parameters (optional)
@@ -346,33 +342,33 @@ def Chl_algorithm(image):
     print("Calculating Chlorophyll-a concentration...")
     try:
         if st.session_state['atmospheric_correction'] == 'SR':
-            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
-                blue1 = 'B1'
+            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
+                # blue1 = 'B1'
                 blue2 = 'B2'
                 green = 'B3'
-            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
-                blue1 = 'SR_B1'
+            elif 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
+                # blue1 = 'SR_B1'
                 blue2 = 'SR_B2'
                 green = 'SR_B3'
             else:
                 print("Unsupported sensor for chl calculation.")
                 return None
         else:
-            blue1 = 'B1'
+            # blue1 = 'B1'
             blue2 = 'B2'
             green = 'B3'
 
-        B1 = image.select(blue1)
         B2 = image.select(blue2)
         G = image.select(green)
-        X = (B1.max(B2)).divide(G).log10()
+        X = (B2.subtract(G)).divide(B2.add(G)).log10()
 
         # float to ee.Image.constant
-        c0 = ee.Image.constant(0.30963)
-        c1 = ee.Image.constant(-2.40052)
-        c2 = ee.Image.constant(1.28932)
-        c3 = ee.Image.constant(0.52802)
-        c4 = ee.Image.constant(-1.33825)
+        c0 = ee.Image.constant(0.3076)
+        c1 = ee.Image.constant(-2.7981)
+        c2 = ee.Image.constant(1.9902)
+        c3 = ee.Image.constant(3.75)
+        c4 = ee.Image.constant(-4.4492)
+        c5 = ee.Image.constant(-4.9499)
 
         # model
         chl = ee.Image(10).pow(
@@ -380,6 +376,7 @@ def Chl_algorithm(image):
               .add(X.pow(2).multiply(c2))
               .add(X.pow(3).multiply(c3))
               .add(X.pow(4).multiply(c4))
+              .add(X.pow(5).multiply(c5))
         )
         # Get the start_time and assign it to chl
         is_date_valid = image.propertyNames().contains('system:time_start')
@@ -395,37 +392,28 @@ def TSS_algorithm(image):
     try:
         # band select
         if st.session_state['atmospheric_correction'] == 'SR':
-            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
-                green = 'B3'
-                red = 'B4'
-            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
-                green = 'SR_B3'
-                red = 'SR_B4'
+            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
+                NIR = 'B8'
+            elif 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
+                NIR = 'SR_B5'
             else:
                 print("Unsupported sensor for TSS calculation.")
                 return None
         else:
-            green = 'B3'
-            red = 'B4'
+            NIR = 'B5'
 
         # bands
-        G = image.select(green)
-        R = image.select(red)
-
-        # log transform
-        log_G = G.log10()
-        log_R = R.log10()
+        ee_NIR = image.select(NIR)
 
         # empeirical coefficients
-        a = ee.Image.constant(1.5)
-        b = ee.Image.constant(-1.2)
-        c = ee.Image.constant(0.7)
+        a = ee.Image.constant(0.5622)
+        b = ee.Image.constant(3.0007)
 
+        log_NIR = ee_NIR.log10()
         # TSS model
         TSS = ee.Image(10).pow(
-            a.multiply(log_G)  # a * log10(G)
-            .add(b.multiply(log_R))  # + b * log10(R)
-            .add(c)  # + c
+            a.multiply(log_NIR)  # a * log10(G)
+            .add(b)  # + b * log10(R)
         )
 
         is_date_valid = image.propertyNames().contains('system:time_start')
@@ -436,14 +424,57 @@ def TSS_algorithm(image):
     except Exception as e:
         print(f"Error calculating TSS: {e}")
         return None
+def Turbidity_algorithm(image):
+    print("Calculating Turbidity...")
+    try:
+        # band select
+        if st.session_state['atmospheric_correction'] == 'SR':
+            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
+                # blue1 = 'B1'
+                red = 'B4'
+                green = 'B3'
+            elif 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
+                # blue1 = 'SR_B1'
+                red = 'SR_B4'
+                green = 'SR_B3'
+            else:
+                print("Unsupported sensor for TSS calculation.")
+                return None
+        else:
+            red = 'B4'
+            green = 'B3'
+
+        # bands
+        G = image.select(green)
+        R = image.select(red)
+        X = G.divide(R).log10()
+
+        # empeirical coefficients
+        a = ee.Image.constant(-2.4211)
+        b = ee.Image.constant(1.5114)
+
+        # turbidity model
+        tur = ee.Image(10).pow(
+            a.multiply(X)  # a * log10(G)
+            .add(b)  # + b * log10(R)
+        )
+
+        is_date_valid = image.propertyNames().contains('system:time_start')
+        start_time = ee.Algorithms.If(is_date_valid, image.get("system:time_start"), image.get("time_start"))
+        tur = tur.set("system:time_start", start_time)
+
+        return tur.rename('Turbidity')
+    except Exception as e:
+        print(f"Error calculating TSS: {e}")
+        return None
 def CDOM_algorithm(image):
     print("Calculating colored dissolved organic matter (CDOM)...")
     try:
         if st.session_state['atmospheric_correction'] == 'SR':
-            if 'S2A_MSI' in st.session_state['sensor'][0] or 'S2B_MSI' in st.session_state['sensor'][0]:
+            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
                 blue = 'B2'
                 green = 'B3'
-            elif 'L8_OLI' in st.session_state['sensor'][0] or 'L9_OLI' in st.session_state['sensor'][0]:
+            elif 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
                 blue = 'SR_B2'
                 green = 'SR_B3'
             else:
@@ -453,21 +484,17 @@ def CDOM_algorithm(image):
             blue = 'B2'
             green = 'B3'
 
-        B = image.select(blue)
+        B2 = image.select(blue)
         G = image.select(green)
+        X = (B2.subtract(G)).divide(B2.add(G)).log10()
 
-        log_B = B.log10()
-        log_G = G.log10()
-
-        a = ee.Image.constant(1.2)
-        b = ee.Image.constant(-0.8)
-        c = ee.Image.constant(0.5)
+        a = ee.Image.constant(-1.8535)
+        b = ee.Image.constant(-0.7642)
 
         # CDOM model
         CDOM = ee.Image(10).pow(
-            a.multiply(log_B)  # a * log10(B)
-            .add(b.multiply(log_G))  # + b * log10(G)
-            .add(c)  # + c
+            a.multiply(X)  # a * log10(B)
+            .add(b)  # + b * log10(G)
         )
 
         is_date_valid = image.propertyNames().contains('system:time_start')
@@ -570,8 +597,6 @@ def mask_water(image):
     # Landsat or Sentinel
     is_landsat = system_id.match('LANDSAT').length().gt(0)
     is_sentinel = system_id.match('COPERNICUS').length().gt(0)
-    # print("is_landsat: ",is_landsat.getInfo())
-    # print("is_sentinel: ",is_sentinel.getInfo())
 
     # water areas
     water_mask = ee.Algorithms.If(
@@ -724,22 +749,27 @@ def show_wq(collection):
     """
     show water quality
     """
-    results = []
+    results = {}
     if 'Chl-a' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 30,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "Chl-a"
         chl = show_map(collection,Chl_algorithm,label,vis_params)
-        results.append(chl)
+        results["Chl-a"]=chl
     if 'TSS' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 10,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "TSS"
         TSS = show_map(collection,TSS_algorithm,label,vis_params)
-        results.append(TSS)
+        results["TSS"]=TSS
     if 'CDOM' in st.session_state["bios"]:
         vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
         label = "CDOM"
         CDOM = show_map(collection,CDOM_algorithm,label,vis_params)
-        results.append(CDOM)
+        results["CDOM"]=CDOM
+    if 'Turbidity' in st.session_state["bios"]:
+        vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
+        label = "Turbidity"
+        Turbidity = show_map(collection,Turbidity_algorithm,label,vis_params)
+        results["Turbidity"]=Turbidity
     return results
 
 def get_bounding_box(coordinates):
