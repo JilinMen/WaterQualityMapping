@@ -157,7 +157,7 @@ with col2:
     # 创建输入框，并绑定到 session_state，同时使用 on_change 回调
     st.number_input("min_lon:", value=st.session_state["min_lon"], key="min_lon")
     st.number_input("min_lat:", value=st.session_state["min_lat"], key="min_lat")
-    st.selectbox('Sensor:',["L8_OLI","L9_OLI",'S2A_MSI','S2B_MSI'],index=0,key="sensor")
+    st.selectbox('Sensor:',["L8_OLI","L9_OLI","S2A_MSI","S2B_MSI"],index=0,key="sensor")
     st.multiselect("Bio-optical:",["Chl-a","TSS","CDOM","Turbidity"],default=st.session_state['bios'],key='bios')
     button_run = st.button("Submit")
 
