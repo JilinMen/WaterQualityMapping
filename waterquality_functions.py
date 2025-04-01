@@ -257,8 +257,35 @@ def preview_rgb_image(collection,num_images = 10):
         # add to map
         st.session_state['m'].addLayer(image, vis_params, f"RGB_{image_date}")
     # st.session_state['m'].to_streamlit(height=600)
+# @title show water quality as layers
+def show_wq(collection):
+    """
+    show water quality
+    """
+    results = {}
+    if 'Chl-a' in st.session_state["bios"]:
+        # vis_params = {"min": 0,"max": 30,"palette": ["blue", "cyan", "green", "yellow", "red"]}
+        label = "Chl-a"
+        chl = show_map(collection,Chl_algorithm,label)
+        results["Chl-a"]=chl
+    if 'TSS' in st.session_state["bios"]:
+        # vis_params = {"min": 0,"max": 10,"palette": ["blue", "cyan", "green", "yellow", "red"]}
+        label = "TSS"
+        TSS = show_map(collection,TSS_algorithm,label)
+        results["TSS"]=TSS
+    if 'CDOM' in st.session_state["bios"]:
+        # vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
+        label = "CDOM"
+        CDOM = show_map(collection,CDOM_algorithm,label)
+        results["CDOM"]=CDOM
+    if 'Turbidity' in st.session_state["bios"]:
+        # vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
+        label = "Turbidity"
+        Turbidity = show_map(collection,Turbidity_algorithm,label)
+        results["Turbidity"]=Turbidity
+    return results
 
-def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10):
+def show_map(collect,algorithm,label='Chl mg/L',vis_params=None, num_images = 10):
     '''
     collect: ee.ImageCollection
     algorithm: water quality function
@@ -272,20 +299,50 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10)
     if algo_collection.size().getInfo() > num_images:
         algo_collection = algo_collection.limit(num_images)
 
+    # 计算影像的四分位数
+    quartiles = algo_collection.mean()
+    # 提取某个波段的四分位数
+    stats = quartiles.reduceRegion(
+        reducer=ee.Reducer.percentile([1, 99]),
+        geometry=st.session_state["roi"],
+        scale=30,
+        bestEffort=True
+    )
+
+    if label == 'Chl-a':
+        st.session_state["chl_low"] = stats.get("Chl-a_p1").getInfo()
+        st.session_state["chl_up"] = stats.get("Chl-a_p99").getInfo()
+        low = st.session_state["chl_low"]
+        up = st.session_state["chl_up"]
+    elif label == 'TSS':
+        st.session_state["tss_low"] = stats.get("TSS_p1").getInfo()
+        st.session_state["tss_up"] = stats.get("TSS_p99").getInfo()
+        low = st.session_state["tss_low"]
+        up = st.session_state["tss_up"]
+    elif label == 'CDOM':
+        st.session_state["cdom_low"] = stats.get("CDOM_p1").getInfo()
+        st.session_state["cdom_up"] = stats.get("CDOM_p99").getInfo()
+        low = st.session_state["cdom_low"]
+        up = st.session_state["cdom_up"]
+    elif label == 'Turbidity':
+        st.session_state["turbidity_low"] = stats.get("Turbidity_p1").getInfo()
+        st.session_state["turbidity_up"] = stats.get("Turbidity_p99").getInfo()
+        low = st.session_state["turbidity_low"]
+        up = st.session_state["turbidity_up"]
+
+    vis_params = {
+        "min": low,  # 颜色条的最小值
+        "max": up,  # 颜色条的最大值
+        # "cmap": "jet",
+        "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00", "#800f2f"],
+        # 颜色渐变
+    }
+
     # Get the list of images from the collection
     images = algo_collection.toList(algo_collection.size())
 
-
     # Get the collection size
     count = algo_collection.size().getInfo()
-
-    # Set default visualization parameters if not provided
-    if vis_params is None:
-        vis_params = {
-            "min": 0,
-            "max": 30,
-            "palette": ["blue", "cyan", "green", "yellow", "red"]
-        }
 
     # Iterate through the images and add them to the map
     for i in range(count):
@@ -307,31 +364,14 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None,num_images = 10)
         # Add the image to the map
         print("Add water quality map to layer!")
         if label == 'Chl-a':
-            st.session_state["m"].addLayer(image, st.session_state['vis_chl'], f"{label}_{image_date}")
+            # st.write(st.session_state['vis_chl'])
+            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
         elif label == 'TSS':
-            st.session_state["m"].addLayer(image, st.session_state['vis_tss'], f"{label}_{image_date}")
-        if label == 'CDOM':
-            st.session_state["m"].addLayer(image, st.session_state['vis_cdom'], f"{label}_{image_date}")
-
-    # # Ensure colorbar is added only once per label
-    # if not hasattr(st.session_state["m"], "added_labels") or not isinstance(st.session_state['m'].added_labels, set):
-    #     st.session_state["m"].added_labels = set()
-
-    # if label not in st.session_state["m"].added_labels:
-    #     # Ensure 'colorbars' is a list to avoid AttributeError
-    #     if hasattr(st.session_state["m"], 'colorbars'):
-    #         if isinstance(st.session_state["m"].colorbars, set):
-    #             st.session_state["m"].colorbars = list(m.colorbars)
-    #     else:
-    #         st.session_state["m"].colorbars = []
-    #
-    #     st.session_state["m"].add_colorbar(
-    #         vis_params,
-    #         label=label,
-    #         orientation='horizontal',
-    #         transparent_bg=True
-    #     )
-    #     st.session_state["m"].added_labels.add(label)
+            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
+        elif label == 'CDOM':
+            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
+        elif label == 'Turbidity':
+            st.session_state["m"].addLayer(image, vis_params, f"{label}_{image_date}")
 
     return algo_collection
 
@@ -343,24 +383,25 @@ def Chl_algorithm(image):
     try:
         if st.session_state['atmospheric_correction'] == 'SR':
             if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
-                # blue1 = 'B1'
+                blue1 = 'B1'
                 blue2 = 'B2'
                 green = 'B3'
             elif 'L8_OLI' in st.session_state['sensor'] or 'L9_OLI' in st.session_state['sensor']:
-                # blue1 = 'SR_B1'
+                blue1 = 'SR_B1'
                 blue2 = 'SR_B2'
                 green = 'SR_B3'
             else:
                 print("Unsupported sensor for chl calculation.")
                 return None
         else:
-            # blue1 = 'B1'
+            blue1 = 'B1'
             blue2 = 'B2'
             green = 'B3'
-
+        B1 = image.select(blue1)
         B2 = image.select(blue2)
         G = image.select(green)
-        X = (B2.subtract(G)).divide(B2.add(G)).log10()
+        X = (B2.subtract(G)).divide(B2.add(G))
+        # X = B2.divide(G).log10()
 
         # float to ee.Image.constant
         c0 = ee.Image.constant(0.3076)
@@ -371,13 +412,14 @@ def Chl_algorithm(image):
         c5 = ee.Image.constant(-4.9499)
 
         # model
-        chl = ee.Image(10).pow(
+        chl = ee.Image.constant(10).pow(
               c0.add(X.multiply(c1))
               .add(X.pow(2).multiply(c2))
               .add(X.pow(3).multiply(c3))
               .add(X.pow(4).multiply(c4))
               .add(X.pow(5).multiply(c5))
         )
+
         # Get the start_time and assign it to chl
         is_date_valid = image.propertyNames().contains('system:time_start')
         start_time = ee.Algorithms.If(is_date_valid, image.get("system:time_start"), image.get("time_start"))
@@ -390,7 +432,7 @@ def Chl_algorithm(image):
 def TSS_algorithm(image):
     print("Calculating total suspended solid...")
     try:
-        # band select
+
         if st.session_state['atmospheric_correction'] == 'SR':
             if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
                 NIR = 'B8'
@@ -411,7 +453,7 @@ def TSS_algorithm(image):
 
         log_NIR = ee_NIR.log10()
         # TSS model
-        TSS = ee.Image(10).pow(
+        TSS = ee.Image.constant(10).pow(
             a.multiply(log_NIR)  # a * log10(G)
             .add(b)  # + b * log10(R)
         )
@@ -424,6 +466,7 @@ def TSS_algorithm(image):
     except Exception as e:
         print(f"Error calculating TSS: {e}")
         return None
+
 def Turbidity_algorithm(image):
     print("Calculating Turbidity...")
     try:
@@ -454,19 +497,19 @@ def Turbidity_algorithm(image):
         b = ee.Image.constant(1.5114)
 
         # turbidity model
-        tur = ee.Image(10).pow(
-            a.multiply(X)  # a * log10(G)
-            .add(b)  # + b * log10(R)
+        tur = ee.Image.constant(10).pow(
+            a.multiply(X)
+            .add(b)
         )
 
         is_date_valid = image.propertyNames().contains('system:time_start')
         start_time = ee.Algorithms.If(is_date_valid, image.get("system:time_start"), image.get("time_start"))
         tur = tur.set("system:time_start", start_time)
-
         return tur.rename('Turbidity')
     except Exception as e:
         print(f"Error calculating TSS: {e}")
         return None
+
 def CDOM_algorithm(image):
     print("Calculating colored dissolved organic matter (CDOM)...")
     try:
@@ -486,15 +529,15 @@ def CDOM_algorithm(image):
 
         B2 = image.select(blue)
         G = image.select(green)
-        X = (B2.subtract(G)).divide(B2.add(G)).log10()
+        X = (B2.subtract(G)).divide(B2.add(G))
 
         a = ee.Image.constant(-1.8535)
         b = ee.Image.constant(-0.7642)
 
         # CDOM model
-        CDOM = ee.Image(10).pow(
-            a.multiply(X)  # a * log10(B)
-            .add(b)  # + b * log10(G)
+        CDOM = ee.Image.constant(10).pow(
+            a.multiply(X)
+            .add(b)
         )
 
         is_date_valid = image.propertyNames().contains('system:time_start')
@@ -505,6 +548,7 @@ def CDOM_algorithm(image):
     except Exception as e:
         print(f"Error calculating CDOM: {e}")
         return None
+
 def extract_water_landsat(image):
     """
     extract water bodies using Landsat imagery
@@ -743,34 +787,6 @@ def merge_by_day(collection):
 
     # exclude image with image_count of 0
     return fused_collection.filter(ee.Filter.gt('image_count', 0))
-
-# @title show water quality as layers
-def show_wq(collection):
-    """
-    show water quality
-    """
-    results = {}
-    if 'Chl-a' in st.session_state["bios"]:
-        vis_params = {"min": 0,"max": 30,"palette": ["blue", "cyan", "green", "yellow", "red"]}
-        label = "Chl-a"
-        chl = show_map(collection,Chl_algorithm,label,vis_params)
-        results["Chl-a"]=chl
-    if 'TSS' in st.session_state["bios"]:
-        vis_params = {"min": 0,"max": 10,"palette": ["blue", "cyan", "green", "yellow", "red"]}
-        label = "TSS"
-        TSS = show_map(collection,TSS_algorithm,label,vis_params)
-        results["TSS"]=TSS
-    if 'CDOM' in st.session_state["bios"]:
-        vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
-        label = "CDOM"
-        CDOM = show_map(collection,CDOM_algorithm,label,vis_params)
-        results["CDOM"]=CDOM
-    if 'Turbidity' in st.session_state["bios"]:
-        vis_params = {"min": 0,"max": 2,"palette": ["blue", "cyan", "green", "yellow", "red"]}
-        label = "Turbidity"
-        Turbidity = show_map(collection,Turbidity_algorithm,label,vis_params)
-        results["Turbidity"]=Turbidity
-    return results
 
 def get_bounding_box(coordinates):
     # 获取最小和最大经纬度
