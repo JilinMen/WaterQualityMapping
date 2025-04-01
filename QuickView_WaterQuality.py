@@ -102,6 +102,7 @@ for key, default_value in default_values.items():
         st.session_state[key] = default_value
 
 st.session_state['m'] = Map(center=(35, -95), zoom=4, Draw_export=True)
+
 if data:
     gdf = uploaded_file_to_gdf(data)
     st.session_state["roi"] = geemap.gdf_to_ee(gdf, geodesic=False)
