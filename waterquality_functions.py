@@ -187,7 +187,7 @@ def update_settings(limit, isodate_start, isodate_end, sensor, output, output_sc
         return
 
 def ACOLITE_run(limit, isodate_start, isodate_end, sensor,
-                output="/conetent/drive/MyDrive/ACOLITE/", output_scale=None,target_scale=None,glint_correction=True,
+                output="./ACOLITE-output/", output_scale=None,target_scale=None,glint_correction=True,
                 store_rhot=False,store_rhos=True,store_geom=False,store_sr=False,store_st=False,store_sp=False,
                 store_output_google_drive=False,
                 store_output_locally=False,
