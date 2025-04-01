@@ -83,58 +83,25 @@ default_values = {
     "max_lon": 0,
     "min_lat": 0,
     "max_lat": 0,
-    "sensor": ["L8_OLI"],
+    "sensor": "L8_OLI",
     "atmospheric_correction": "SR",
-    "bios": ["Chl-a"]
+    "bios": ["Chl-a"],
+    "chl_low": 0,
+    "chl_up": 1,
+    "tss_low": 0,
+    "tss_up": 1,
+    "cdom_low":0,
+    "cdom_up":1,
+    "turbidity_low":0,
+    "turbidity_up":1,
 }
-
-# 可视化参数
-st.session_state['vis_chl'] = {
-                                "width": 2.5,
-                                "height": 0.3,
-                                "vmin": 0,  # 颜色条的最小值
-                                "vmax": 50,  # 颜色条的最大值
-                                "orientation": "horizontal",
-                                "label": "Chl-a (mg/L)",
-                                # "cmap": "winter",
-                                "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb","#38b000","#006400","#ffb627","#f85e00","#800f2f"],  # 颜色渐变
-                                }
-st.session_state['vis_tss'] =  {       # 可视化参数
-                                "width": 2.5,
-                                "height": 0.3,
-                                "vmin": 0,  # 颜色条的最小值
-                                "vmax": 50,  # 颜色条的最大值
-                                "orientation": "horizontal",
-                                "label": "TSS (mg/L)",
-                                # "cmap": "winter",
-                                "palette": ["#ffe169", "#edc531", "#c9a227", "#a47e1b", "#805b10"],  # 颜色渐变
-                                }
-st.session_state['vis_cdom'] =  {
-                                "width": 2.5,
-                                "height": 0.3,
-                                "vmin": 0,  # 颜色条的最小值
-                                "vmax": 5,  # 颜色条的最大值
-                                "orientation": "horizontal",
-                                "label": "CDOM (m-1)",
-                                # "cmap": "rainbow",
-                                "palette": ["#007f5f", "#55a630", "#aacc00", "#d4d700", "#ffff3f"],  # 颜色渐变
-                                }
-st.session_state['vis_turbidity'] =  {
-                                "width": 2.5,
-                                "height": 0.3,
-                                "vmin": 0,  # 颜色条的最小值
-                                "vmax": 30,  # 颜色条的最大值
-                                "orientation": "horizontal",
-                                "label": "Turbidity (NTU)",
-                                # "cmap": "rainbow",
-                                "palette": ["#007f5f", "#55a630", "#aacc00", "#d4d700", "#ffff3f"],  # 颜色渐变
-                                }
 
 # 检查并设置缺失的 session_state 变量
 for key, default_value in default_values.items():
     if key not in st.session_state:
         st.session_state[key] = default_value
 
+st.session_state['m'] = Map(center=(35, -95), zoom=4, Draw_export=True)
 if data:
     gdf = uploaded_file_to_gdf(data)
     st.session_state["roi"] = geemap.gdf_to_ee(gdf, geodesic=False)
@@ -150,10 +117,10 @@ if data:
     })
 
 with col2:
-    st.write('Date range ==========')
+    st.write('Date range ##########')
     start_date = st.date_input("start_date:",value=datetime.date.today() - datetime.timedelta(days=30))
 
-    st.write('Coordinates =========')
+    st.write('Coordinates #########')
     # 创建输入框，并绑定到 session_state，同时使用 on_change 回调
     st.number_input("min_lon:", value=st.session_state["min_lon"], key="min_lon")
     st.number_input("min_lat:", value=st.session_state["min_lat"], key="min_lat")
@@ -162,21 +129,21 @@ with col2:
     button_run = st.button("Submit")
 
 with col3:
-    st.write("====================")
+    st.write("####################")
     end_date = st.date_input("end_date:", value=datetime.date.today())
-    st.write("====================")
+    st.write("####################")
     st.number_input("max_lon:", value=st.session_state["max_lon"], key="max_lon")
     st.number_input("max_lat:", value=st.session_state["max_lat"], key="max_lat")
-    st.selectbox("Atmospheric correction:", ["SR", "ACOLITE"], index=0, key="atmospheric_correction")
-    st.write("====================")
-    st.write("====================")
+    st.selectbox("Atmospheric correction:", ["SR", "ACOLITE"], index=1, key="atmospheric_correction")
+    st.write("####################")
+    st.write("####################")
     button_clear = st.button("Reset")
 
 if button_clear:
 
     print("Clear successfully!")
 
-st.session_state['m'] = Map(center=(35, -95), zoom=4, Draw_export=True)
+
 
 if button_run:
     images, imColl = wqf.match_scenes(
@@ -187,7 +154,7 @@ if button_run:
         sensors=st.session_state['sensor']
     )
 
-    st.write("Total images found:", len(images))
+    st.write("Total images:", len(images))
     # st.write("Image list: ",imColl.aggregate_array('system:index').getInfo())
     # st.write("Cloud cover: ",imColl.aggregate_array('CLOUD_COVER').getInfo())
 
@@ -195,123 +162,145 @@ if button_run:
     
         st.write('No image founded! Please change the parameters and resubmit')
 
-    elif st.session_state['atmospheric_correction'] == 'SR':
-        collection = imColl
-
-        # transfer to surface reflectance
-        if st.session_state['sensor'] in ['S2A_MSI', 'S2B_MSI']:
-            print('Input S2')
-            collection_scaled = collection.map(wqf.scale_reflectance_sentinel)
-        elif st.session_state['sensor'] in ['L4_TM', 'L5_TM', 'L7_ETM', 'L8_OLI', 'L9_OLI']:
-            print('Input Landsat')
-            collection_scaled = collection.map(wqf.scale_reflectance_landsat)
-        else:
-            print("Unsupported sensor for reflectance conversion.",st.session_state['sensor'])
-            collection_scaled = collection
-
-        # mosaic images on the same day
-        # print("Band names before mosaic: ",collection_scaled.first().bandNames().getInfo())
-        collection_day = wqf.merge_by_day(collection_scaled)
-        # print("Band names after mosaic: ",collection_day.first().bandNames().getInfo())
-        print("Total images after mosaic:", collection_day.size().getInfo())
-        # print(collection_day.first().bandNames().getInfo())
-        # mask clouds and land
-        water_extracted_collection = collection_day.map(wqf.mask_water)
-        print("Property names: ",water_extracted_collection.first().propertyNames().getInfo())
-        print("Mosaic image list: ",water_extracted_collection.aggregate_array('custom_id').getInfo())
-        # print("water_extracted_collection size: ",water_extracted_collection.size().getInfo())
-
-        print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
-        # RGB preview
-        print('start to map RGB image!')
-        wqf.preview_rgb_image(collection_day)
-        print('start to map water quality parameters!')
-        bios_results = wqf.show_wq(water_extracted_collection)
-
-        print("Processing complete!")
-    elif st.session_state['atmospheric_correction'] == 'ACOLITE':
-        # st.write("Applying ACOLITE Atmospheric Correction...")
-        collection = wqf.ACOLITE_run(
-                    [st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
-                    start_date.isoformat(), end_date.isoformat(),
-                    st.session_state['sensor']
-                    )
-        print("Atmospheric correction complete!")
-        print("collection after acolite: ", collection.first().bandNames().getInfo())
-        print("type: ",type(st.session_state['sensor']))
-        print("check: ", 'S2A_MSI' in st.session_state['sensor'])
-
-        # Ensure collection and imColl have the same start_time by merging metadata
-        def merge_scl_or_qa_pixel(image, reference_image):
-            if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
-                flag_band = 'SCL'
-            elif "L8_OLI" in st.session_state['sensor'] or "L9_OLI" in st.session_state['sensor']:
-                flag_band = 'QA_PIXEL'
-            else:
-                print("Sensor can't be identified: ",st.session_state['sensor'])
-            # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
-            scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
-            return image.addBands(scl_or_qa_pixel)
-
-        # Apply the merging function to ensure that both collections have the same SCL/QA_PIXEL
-        collection = collection.map(lambda image: merge_scl_or_qa_pixel(image,imColl.filterDate(image.get('time_start')).first()))
-
-        collection_day = wqf.merge_by_day(collection)
-        # print('collection_day: ', collection_day.aggregate_array('system:id'))
-
-        # mask clouds and land
-        water_extracted_collection = collection_day.map(wqf.mask_water)
-        print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
-
-        # RGB preview
-        print('start to map RGB image!')
-        wqf.preview_rgb_image(collection_day)
-        print('start to map water quality parameters!')
-        bios_results = wqf.show_wq(water_extracted_collection)
-        print("Processing complete!")
     else:
-        print("Unsupported atmospheric correction method.")
+        if st.session_state['atmospheric_correction'] == 'SR':
+            collection = imColl
 
-    if "Chl-a" in st.session_state['bios']:
-        st.session_state['m'].add_colormap(position=(73, 4), **st.session_state['vis_chl'])
-        # st.session_state['m'].add_colorbar(label='Chl-a (mg/m3)',
-        #                                    vis_params=st.session_state['vis_chl'],
-        #                                    position="bottomright")
-        st.write(type(bios_results["Chl-a"]))
-        stats = bios_results["Chl-a"].mean().reduceRegion(
-            reducer=ee.Reducer.mean()
-            .combine(ee.Reducer.median(), sharedInputs=True)
-            .combine(ee.Reducer.min(), sharedInputs=True)
-            .combine(ee.Reducer.max(), sharedInputs=True),
-            geometry=st.session_state["roi"],
-            scale=30,
-            bestEffort=True
-        )
-        st.write(stats.getInfo())
-        # st.write("Chl statistic:",
-        #          "Mean:", bios_results["Chl-a"].reduce(ee.Reducer.mean()),
-        #          "Median:", bios_results["Chl-a"].reduce(ee.Reducer.median()),
-        #          "Minimum:", bios_results["Chl-a"].reduce(ee.Reducer.min()),
-        #          "Maximum:", bios_results["Chl-a"].reduce(ee.Reducer.max()),
-        #          )
-    if "TSS" in st.session_state['bios']:
-        st.session_state['m'].add_colormap(position=(73, 18), **st.session_state['vis_tss'])
-        # st.session_state['m'].add_colorbar(label='TSS (mg/m3)',
-        #                                    vis_params=st.session_state['vis_tss'],
-        #                                    position="bottomright")
-    if "CDOM" in st.session_state['bios']:
-        st.session_state['m'].add_colormap(position=(73, 32), **st.session_state['vis_cdom'])
-        # st.session_state['m'].add_colorbar(label='CDOM (m-1)',
-        #                                    vis_params=st.session_state['vis_cdom'],
-        #                                    loc="bottom")
-    if "Turbidity" in st.session_state['bios']:
-        st.session_state['m'].add_colormap(position=(73, 46), **st.session_state['vis_turbidity'])
-        # st.session_state['m'].add_colorbar(label='CDOM (m-1)',
-        #                                    vis_params=st.session_state['vis_cdom'],
-        #                                    loc="bottom")
+            # transfer to surface reflectance
+            if st.session_state['sensor'] in ['S2A_MSI', 'S2B_MSI']:
+                print('Input S2')
+                collection_scaled = collection.map(wqf.scale_reflectance_sentinel)
+            elif st.session_state['sensor'] in ['L4_TM', 'L5_TM', 'L7_ETM', 'L8_OLI', 'L9_OLI']:
+                print('Input Landsat')
+                collection_scaled = collection.map(wqf.scale_reflectance_landsat)
+            else:
+                print("Unsupported sensor for reflectance conversion.",st.session_state['sensor'])
+                collection_scaled = collection
+
+            # mosaic images on the same day
+            # print("Band names before mosaic: ",collection_scaled.first().bandNames().getInfo())
+            collection_day = wqf.merge_by_day(collection_scaled)
+            # print("Band names after mosaic: ",collection_day.first().bandNames().getInfo())
+            print("Total images after mosaic:", collection_day.size().getInfo())
+            # print(collection_day.first().bandNames().getInfo())
+            # mask clouds and land
+            water_extracted_collection = collection_day.map(wqf.mask_water)
+            print("Property names: ",water_extracted_collection.first().propertyNames().getInfo())
+            print("Mosaic image list: ",water_extracted_collection.aggregate_array('custom_id').getInfo())
+            # print("water_extracted_collection size: ",water_extracted_collection.size().getInfo())
+
+            print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
+            # RGB preview
+            print('start to map RGB image!')
+            wqf.preview_rgb_image(collection_day)
+            print('start to map water quality parameters!')
+            bios_results = wqf.show_wq(water_extracted_collection)
+
+            print("Processing complete!")
+        elif st.session_state['atmospheric_correction'] == 'ACOLITE':
+            # st.write("Applying ACOLITE Atmospheric Correction...")
+            collection = wqf.ACOLITE_run(
+                        [st.session_state["min_lat"], st.session_state["min_lon"], st.session_state["max_lat"], st.session_state["max_lon"]],
+                        start_date.isoformat(), end_date.isoformat(),
+                        st.session_state['sensor']
+                        )
+            print("Atmospheric correction complete!")
+            print("collection after acolite: ", collection.first().bandNames().getInfo())
+            print("type: ",type(st.session_state['sensor']))
+            print("check: ", 'S2A_MSI' in st.session_state['sensor'])
+
+            # Ensure collection and imColl have the same start_time by merging metadata
+            def merge_scl_or_qa_pixel(image, reference_image):
+                if 'S2A_MSI' in st.session_state['sensor'] or 'S2B_MSI' in st.session_state['sensor']:
+                    flag_band = 'SCL'
+                elif "L8_OLI" in st.session_state['sensor'] or "L9_OLI" in st.session_state['sensor']:
+                    flag_band = 'QA_PIXEL'
+                else:
+                    print("Sensor can't be identified: ",st.session_state['sensor'])
+                # Merge the SCL or QA_PIXEL from imColl to ACOLITE collection
+                scl_or_qa_pixel = reference_image.select(flag_band).rename(flag_band)  # Or use QA_PIXEL if needed
+                return image.addBands(scl_or_qa_pixel)
+
+            # Apply the merging function to ensure that both collections have the same SCL/QA_PIXEL
+            collection = collection.map(lambda image: merge_scl_or_qa_pixel(image,imColl.filterDate(image.get('time_start')).first()))
+
+            collection_day = wqf.merge_by_day(collection)
+            # print('collection_day: ', collection_day.aggregate_array('system:id'))
+
+            # mask clouds and land
+            water_extracted_collection = collection_day.map(wqf.mask_water)
+            print("Band names after masking: ",water_extracted_collection.first().bandNames().getInfo())
+
+            # RGB preview
+            print('start to map RGB image!')
+            wqf.preview_rgb_image(collection_day)
+            print('start to map water quality parameters!')
+            bios_results = wqf.show_wq(water_extracted_collection)
+            print("Processing complete!")
+        else:
+            print("Unsupported atmospheric correction method.")
+
+        if "Chl-a" in st.session_state['bios']:
+            st.session_state['vis_chl'] = {
+                "width": 2.5,
+                "height": 0.3,
+                "vmin": st.session_state['chl_low'],  # 颜色条的最小值
+                "vmax": st.session_state['chl_up'],  # 颜色条的最大值
+                "orientation": "horizontal",
+                "label": "Chl-a (mg/L)",
+                # "cmap": "jet",
+                "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00",
+                            "#800f2f"],  # 颜色渐变
+            }
+            st.session_state['m'].add_colormap(position=(73, 4), **st.session_state['vis_chl'])
+
+        if "TSS" in st.session_state['bios']:
+            st.session_state['vis_tss'] = {  # 可视化参数
+                "width": 2.5,
+                "height": 0.3,
+                "vmin": st.session_state['tss_low'],  # 颜色条的最小值
+                "vmax": st.session_state['tss_up'],  # 颜色条的最大值
+                "orientation": "horizontal",
+                "label": "TSS (mg/L)",
+                # "cmap": "winter",
+                "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00",
+                            "#800f2f"],  # 颜色渐变
+            }
+            st.session_state['m'].add_colormap(position=(73, 18), **st.session_state['vis_tss'])
+        if "CDOM" in st.session_state['bios']:
+            st.session_state['vis_cdom'] = {
+                "width": 2.5,
+                "height": 0.3,
+                "vmin": st.session_state['cdom_low'],  # 颜色条的最小值
+                "vmax": st.session_state['cdom_low'],  # 颜色条的最大值
+                "orientation": "horizontal",
+                "label": "CDOM (m-1)",
+                # "cmap": "rainbow",
+                "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00",
+                            "#800f2f"],  # 颜色渐变
+            }
+
+            st.session_state['m'].add_colormap(position=(73, 32), **st.session_state['vis_cdom'])
+
+        if "Turbidity" in st.session_state['bios']:
+            st.session_state['vis_turbidity'] = {
+                "width": 2.5,
+                "height": 0.3,
+                "vmin": st.session_state['turbidity_low'],  # 颜色条的最小值
+                "vmax": st.session_state['turbidity_up'],  # 颜色条的最大值
+                "orientation": "horizontal",
+                "label": "Turbidity (NTU)",
+                # "cmap": "rainbow",
+                "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00",
+                            "#800f2f"],  # 颜色渐变
+            }
+            st.session_state['m'].add_colormap(position=(73, 46), **st.session_state['vis_turbidity'])
 
 with col1:
-    st.session_state['m'].to_streamlit(height=600)
+    component = st.session_state['m'].to_streamlit(height=600)
+
+# st.write("st_last_draw:", st.session_state['m'].st_last_draw())
+# st.write("st_last_draw:", st.session_state['m'].user_roi())
 
 
 
