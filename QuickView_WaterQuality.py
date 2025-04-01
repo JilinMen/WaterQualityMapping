@@ -70,6 +70,11 @@ private_key = st.secrets["GEE_PRIVATE_KEY"]
 credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
 ee.Initialize(credentials)
 
+with st.expander(
+    "Please draw a rectangle on the map -> Export it as a GeoJSON -> Upload it back to the app -> Click the Submit button. Expand this tab to see a demo👇"
+):
+    video = st.empty()
+    video.video("https://youtu.be/n8qGTBnSBYE")
 data = st.file_uploader(
     "Upload a GeoJSON file to use as an ROI. Customize parameters and then click the Submit button👇",
     type=["geojson", "kml", "zip"],
@@ -142,7 +147,7 @@ with col3:
 
 if button_clear:
 
-    print("Clear successfully!")
+    st.success("All parameters have been reset!")
 
 
 
@@ -161,7 +166,7 @@ if button_run:
 
     if len(images)==0:
     
-        st.write('No image founded! Please change the parameters and resubmit')
+        st.warning('No image founded! Please change the parameters and resubmit')
 
     else:
         if st.session_state['atmospheric_correction'] == 'SR':
@@ -298,12 +303,9 @@ if button_run:
             st.session_state['m'].add_colormap(position=(73, 46), **st.session_state['vis_turbidity'])
 
 with col1:
+
     component = st.session_state['m'].to_streamlit(height=600)
 
 # st.write("st_last_draw:", st.session_state['m'].st_last_draw())
 # st.write("st_last_draw:", st.session_state['m'].user_roi())
-
-
-
-
 
