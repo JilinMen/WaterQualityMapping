@@ -267,7 +267,7 @@ if button_run:
                 "vmin": st.session_state['tss_low'],  # 颜色条的最小值
                 "vmax": st.session_state['tss_up'],  # 颜色条的最大值
                 "orientation": "horizontal",
-                "label": "TSS (mg/L)",
+                "label": "TSS (g/L)",
                 # "cmap": "winter",
                 "palette": ["#7400b8", "#5e60ce", "#56cfe1", "#80ffdb", "#38b000", "#006400", "#ffb627", "#f85e00",
                             "#800f2f"],  # 颜色渐变
