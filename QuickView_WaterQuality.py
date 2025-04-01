@@ -89,7 +89,7 @@ default_values = {
     "min_lat": 0,
     "max_lat": 0,
     "sensor": "L8_OLI",
-    "atmospheric_correction": "SR",
+    "atmospheric_correction": "ACOLITE",
     "bios": ["Chl-a"],
     "chl_low": 0,
     "chl_up": 1,
