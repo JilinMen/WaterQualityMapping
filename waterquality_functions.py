@@ -301,14 +301,11 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None, num_images = 10
         algo_collection = algo_collection.limit(num_images)
 
     def mask_invalid(img):
-        # 选择波段（假设只有一个波段）
-        band = img.select(0)  
-        # 创建掩膜：保留在 0 到 1000 范围内的有效像素
-        mask = band.neq(ee.Number.infinity()) \
-                   .And(band.neq(-9999)) \
-                   .And(band.gte(0))  \
-                   .And(band.lte(1000))  # 设置最大值为 1000
+        band = img.select(0)  # 只有一个波段时直接选第一个
+        # 掩膜条件：在合理范围 [0, 1000] 之间，且不等于 -9999
+        mask = band.gte(0).And(band.lte(1000)).And(band.neq(-9999))
         return img.updateMask(mask)
+    
     # 对每个影像应用掩膜
     filtered = algo_collection.map(mask_invalid)
     
