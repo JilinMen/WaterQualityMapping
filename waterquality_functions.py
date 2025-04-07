@@ -333,7 +333,7 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None, num_images = 10
     #     maxPixels=1e5,
     #     bestEffort=True
     # )
-    st.write('quartiles: ', stats)
+    # st.write('quartiles: ', stats)
 
     if label == 'Chl-a':
         st.session_state["chl_low"] = stats.get("Chl-a_p1").getInfo()
