@@ -307,6 +307,7 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None, num_images = 10
         reducer=ee.Reducer.percentile([1, 99]),
         geometry=st.session_state["roi"],
         scale=30,
+        maxPixels=1e5,
         bestEffort=True
     )
 
