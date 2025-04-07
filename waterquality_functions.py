@@ -105,6 +105,7 @@ def match_scenes(isodate_start, isodate_end=None, day_range=1,
         # elif 'COPERNICUS' in coll:
         #     cloud_name = 'CLOUDY_PIXEL_PERCENTAGE'
         # imC = ee.ImageCollection(coll).filterDate(sdate, edate).filter(ee.Filter.lt(cloud_name, 50))
+        imC = ee.ImageCollection(coll).filterDate(sdate, edate)
         if region is not None: imC = imC.filterBounds(region)
 
         if imColl is None:
