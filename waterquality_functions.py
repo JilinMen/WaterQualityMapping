@@ -300,16 +300,39 @@ def show_map(collect,algorithm,label='Chl mg/L',vis_params=None, num_images = 10
     if algo_collection.size().getInfo() > num_images:
         algo_collection = algo_collection.limit(num_images)
 
-    # 计算影像的四分位数
-    quartiles = algo_collection.mean()
-    # 提取某个波段的四分位数
-    stats = quartiles.reduceRegion(
+    def mask_invalid(img):
+        # 选择波段（假设只有一个波段）
+        band = img.select(0)  
+        # 创建掩膜：保留在 0 到 1000 范围内的有效像素
+        mask = band.neq(ee.Number.infinity()) \
+                   .And(band.neq(-9999)) \
+                   .And(band.gte(0))  \
+                   .And(band.lte(1000))  # 设置最大值为 1000
+        return img.updateMask(mask)
+    # 对每个影像应用掩膜
+    filtered = algo_collection.map(mask_invalid)
+    
+    # 堆叠所有影像
+    stacked = filtered.toBands()
+    
+    # 计算 1% 和 99% 百分位数
+    stats = stacked.reduceRegion(
         reducer=ee.Reducer.percentile([1, 99]),
         geometry=st.session_state["roi"],
         scale=30,
-        maxPixels=1e5,
+        maxPixels=1e9,
         bestEffort=True
     )
+    # # 计算影像的四分位数
+    # quartiles = algo_collection.mean()
+    # # 提取某个波段的四分位数
+    # stats = quartiles.reduceRegion(
+    #     reducer=ee.Reducer.percentile([1, 99]),
+    #     geometry=st.session_state["roi"],
+    #     scale=30,
+    #     maxPixels=1e5,
+    #     bestEffort=True
+    # )
     st.write('quartiles: ', stats)
 
     if label == 'Chl-a':
