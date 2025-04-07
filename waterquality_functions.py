@@ -84,7 +84,7 @@ def match_scenes(isodate_start, isodate_end=None, day_range=1,
             #collections.append('COPERNICUS/S2') # 'COPERNICUS/S2_HARMONIZED'
             collections.append('COPERNICUS/S2_HARMONIZED') # COPERNICUS/S2 superseded by COPERNICUS/S2_HARMONIZED in Jun 2024
 
-    print(limit)
+    # print(limit)
     ## set up region
     if limit is not None:
         region = ee.Geometry.BBox(limit[1], limit[0], limit[3], limit[2])
@@ -100,11 +100,11 @@ def match_scenes(isodate_start, isodate_end=None, day_range=1,
     imColl = None
 
     for coll in collections:
-        if 'LANDSAT' in coll:
-            cloud_name = 'CLOUD_COVER'
-        elif 'COPERNICUS' in coll:
-            cloud_name = 'CLOUDY_PIXEL_PERCENTAGE'
-        imC = ee.ImageCollection(coll).filterDate(sdate, edate).filter(ee.Filter.lt(cloud_name, 50))
+        # if 'LANDSAT' in coll:
+        #     cloud_name = 'CLOUD_COVER'
+        # elif 'COPERNICUS' in coll:
+        #     cloud_name = 'CLOUDY_PIXEL_PERCENTAGE'
+        # imC = ee.ImageCollection(coll).filterDate(sdate, edate).filter(ee.Filter.lt(cloud_name, 50))
         if region is not None: imC = imC.filterBounds(region)
 
         if imColl is None:
